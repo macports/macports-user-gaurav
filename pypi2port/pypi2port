@@ -1,24 +1,18 @@
-#! /bin/sh
-""":"
-exec python $0 ${1+"$@"}
-"""
-__doc__ = """...Script for pypi2port module written for "The Macports Project"
-             participating in Google Summer of Code 2014..."""
-
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# !/usr/bin/env python
 
 import argparse
 import sys
 import os
-import urllib2
 import hashlib
 import zipfile
-from progressbar import *
+import progressbar as pb
 try:
     import xmlrpclib
+    from urllib2 import urlopen
 except ImportError:
     import xmlrpc.client as xmlrpclib
+    from urllib.request import urlopen
 import textwrap
 import string
 import shutil
@@ -26,53 +20,43 @@ import re
 import difflib
 import subprocess
 import requests
-import shlex
-import getpass
 
 client = xmlrpclib.ServerProxy('http://pypi.python.org/pypi')
 
 
-""" Lists all packages available in pypi database """
-
-
 def list_all():
+    """ Lists all packages available in pypi database """
     list_packages = client.list_packages()
     for package in list_packages:
-        print package
-
-
-""" Searches for a particular package by the name classifier """
+        print(package)
 
 
 def search(pkg_name):
+    """ Searches for a particular package by the name classifier """
     values = client.search({'name': pkg_name})
     for value in values:
         for key in value.keys():
             print key, '-->', value[key]
 
 
-""" Fetches the release data for a paticular package based on
-    the package_name and package_version """
-
-
 def release_data(pkg_name, pkg_version):
+    """ Fetches the release data for a paticular package based on
+    the package_name and package_version """
     if pkg_version:
         values = client.release_data(pkg_name, pkg_version)
         if values:
             for key in values.keys():
                 print key, '-->', values[key]
         else:
-            print "No such package found."
-            print "Please specify the exact package name."
+            print("No such package found.")
+            print("Please specify the exact package name.")
         return
     return
 
 
-""" Fetches the distfile for a particular package name and release_url """
-
-
 def fetch(pkg_name, dict):
-    print "Fetching distfiles..."
+    """ Fetches the distfile for a particular package name and release_url """
+    print("Fetching distfiles...")
     checksum_md5 = dict['md5_digest']
     parent_dir = './sources'
     home_dir = parent_dir + '/' + 'python'
@@ -87,15 +71,15 @@ def fetch(pkg_name, dict):
     url = dict['url']
     file_name = src_dir + '/' + dict['filename']
 
-    u = urllib2.urlopen(url)
+    u = urlopen(url)
     with open(file_name, 'wb') as f:
         meta = u.info()
         file_size = int(meta.getheaders("Content-Length")[0])
 
-        widgets = ['Fetching: ', Percentage(), ' ',
-                   Bar(marker=RotatingMarker(), left='[', right=']'),
-                   ' ', ETA(), ' ', FileTransferSpeed()]
-        pbar = ProgressBar(widgets=widgets, maxval=int(file_size))
+        widgets = ['Fetching: ', pb.Percentage(), ' ',
+                   pb.Bar(marker=pb.RotatingMarker(), left='[', right=']'),
+                   ' ', pb.ETA(), ' ', pb.FileTransferSpeed()]
+        pbar = pb.ProgressBar(widgets=widgets, maxval=int(file_size))
         pbar.start()
 
         file_size_dl = 0
@@ -113,7 +97,7 @@ def fetch(pkg_name, dict):
 
     checksum_md5_calc = hashlib.md5(open(file_name).read()).hexdigest()
     if str(checksum_md5) == str(checksum_md5_calc):
-        print 'Successfully fetched'
+        print('Successfully fetched')
         ext = file_name.split('.')[-1]
         if ext == 'egg':
             zip = zipfile.ZipFile(file_name)
@@ -122,41 +106,37 @@ def fetch(pkg_name, dict):
                     zip.extract(name, src_dir)
         return file_name
     else:
-        print 'Aborting due to inconsistency on checksums\n'
+        print('Aborting due to inconsistency on checksums\n')
         try:
             os.remove(file_name)
-        except OSError, e:
-            print "Error: %s - %s." % (e.filename, e.strerror)
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
         return False
 
 
-""" Checks for the checksums and dependecies for a particular python package
-    on the basis of package_name and package_version """
-
-
 def fetch_url(pkg_name, pkg_version, checksum=False, deps=False):
+    """ Checks for the checksums and dependecies for a particular python package
+    on the basis of package_name and package_version """
     values = client.release_urls(pkg_name, pkg_version)
     if checksum:
-#        print values
+        # print values
         for value in values:
-            if value['filename'].split('.')[-1] == 'gz' or value['filename'].split('.')[-1] == 'zip':
+            if value['filename'].split('.')[-1] in ('gz', 'zip'):
                 return fetch(pkg_name, value)
     else:
         for value in values:
             return fetch(pkg_name, value)
 
 
-""" Finds dependencies for a particular package on the basis of
-    package_name and package_version """
-
-
 def dependencies(pkg_name, pkg_version, deps=False):
+    """ Finds dependencies for a particular package on the basis of
+    package_name and package_version """
     flag = False
     if not deps:
         return
     values = client.release_urls(pkg_name, pkg_version)
     for value in values:
-        if not(value['filename'].split('.')[-1] == 'gz' or value['filename'].split('.')[-1] == 'zip'):
+        if value['filename'].split('.')[-1] in ('gz', 'zip'):
             fetch(pkg_name, value)
     try:
         with open('./sources/python/py-'
@@ -170,7 +150,7 @@ def dependencies(pkg_name, pkg_version, deps=False):
                               ignore_errors=True)
                 items = os.listdir('./sources/python/py-' + pkg_name)
                 for item in items[:]:
-                    if not(item.split('.')[-1] == 'gz' or item.split('.')[-1] == 'zip'):
+                    if item.split('.')[-1] not in ('gz', 'zip'):
                         os.remove('./sources/python/py-'
                                   + pkg_name + '/' + item)
                         items.remove(item)
@@ -186,7 +166,7 @@ def dependencies(pkg_name, pkg_version, deps=False):
                               ignore_errors=True)
                 items = os.listdir('./sources/python/py-'+pkg_name)
                 for item in items[:]:
-                    if not(item.split('.')[-1] == 'gz' or item.split('.')[-1] == 'zip'):
+                    if item.split('.')[-1] not in ('gz', 'zip'):
                         os.remove('./sources/python/py-'+pkg_name+'/'+item)
                         items.remove(item)
                 if not items:
@@ -196,10 +176,8 @@ def dependencies(pkg_name, pkg_version, deps=False):
         return False
 
 
-""" Creates a diff file for an existent port """
-
-
 def create_diff(old_file, new_file, diff_file):
+    """ Creates a diff file for an existent port """
     with open(old_file) as f:
         a = f.readlines()
 #    a = open(old_file).readlines()
@@ -208,39 +186,31 @@ def create_diff(old_file, new_file, diff_file):
 #    b = open(new_file).readlines()
     diff_string = difflib.unified_diff(a, b, "Portfile.orig", "Portfile")
     with open(diff_file, 'w') as d:
-        try:
-            while 1:
-                d.write(diff_string.next())
-        except:
-            pass
-
-
-""" Searches for an existent port by its name """
+        d.writelines(diff_string)
 
 
 def search_port(name):
+    """ Searches for an existent port by its name """
     try:
         command = "port file name:^py-" + name + "$"
         command = command.split()
         existing_portfile = \
             subprocess.check_output(command, stderr=subprocess.STDOUT).strip()
         return existing_portfile
-    except Exception, e:
+    except Exception:
         return False
 
 
-""" Generates checksums for a package on the basis of the distfile fetched by
-    its package_name and package_version """
-
-
 def checksums(pkg_name, pkg_version):
+    """ Generates checksums for a package on the basis of the distfile fetched by
+    its package_name and package_version """
     flag = False
-    print "Attempting to fetch distfiles..."
+    print("Attempting to fetch distfiles...")
     file_name = fetch_url(pkg_name, pkg_version, True)
     if file_name:
         checksums = []
         try:
-            print "Generating checksums..."
+            print("Generating checksums...")
             command = "openssl rmd160 "+file_name
             command = command.split()
             rmd160 = subprocess.check_output(command, stderr=subprocess.STDOUT)
@@ -259,34 +229,30 @@ def checksums(pkg_name, pkg_version):
             try:
                 if flag:
                     os.rmdir(dir)
-            except OSError as ex:
+            except OSError:
                 pass
             return checksums
         except:
-            print "Error\n"
+            print("Error\n")
             return
 
 
-""" Searches if the distfile listed is present or not """
-
-
 def search_distfile(name, version):
+    """ Searches if the distfile listed is present or not """
     try:
         url = client.release_urls(name, version)[0]['url']
         r = requests.get(url, verify=False)
         if not r.status_code == 200:
-            raise Error('No distfile')
+            raise Exception('No distfile')
     except:
-        print "No distfile found"
-        print "Please set a DISTFILE env var before generating the portfile"
+        print("No distfile found")
+        print("Please set a DISTFILE env var before generating the portfile")
         sys.exit(0)
 
 
-""" Maps the license passed to the already present list of
-    licences available in Macports """
-
-
 def search_license(license):
+    """ Maps the license passed to the already present list of
+    licences available in Macports """
     license = license.lower()
     patterns = ['.*mit.*', '.*apache.*2', '.*apache.*', '.*bsd.*', '.*agpl.*3',
                 '.*agpl.*2', '.*agpl.*', '.*affero.*3', '.*affero.*2',
@@ -305,10 +271,8 @@ def search_license(license):
             return licenses[i]
 
 
-""" Port Testing function for various phase implementations """
-
-
 def port_testing(name, portv='27'):
+    """ Port Testing function for various phase implementations """
     euid = os.geteuid()
     if euid:
         args = ['sudo', sys.executable] + sys.argv + [os.environ]
@@ -316,14 +280,14 @@ def port_testing(name, portv='27'):
 
     for phase in [port_fetch, port_checksum, port_extract, port_configure,
                   port_build, port_destroot, port_clean]:
-        print phase.__name__
+        print(phase.__name__)
         phase_output = phase(name, portv)
         if phase_output:
-            print phase.__name__ + " - SUCCESS"
+            print(phase.__name__ + " - SUCCESS")
         else:
-            print phase.__name__ + " FAILED"
+            print(phase.__name__ + " FAILED")
             port_clean(name, portv)
-            print "Exiting"
+            print("Exiting")
             sys.exit(1)
 
         euid = os.geteuid()
@@ -332,125 +296,107 @@ def port_testing(name, portv='27'):
             os.execlpe('sudo', *args)
 
 
-""" Fetch phase implementation """
-
-
 def port_fetch(name, portv='27'):
+    """ Fetch phase implementation """
     try:
         command = "sudo port -t fetch dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Checksum phase implementation """
-
-
 def port_checksum(name, portv='27'):
+    """ Checksum phase implementation """
     try:
         command = "sudo port -t checksum dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Checksum phase implementation """
-
-
 def port_extract(name, portv='27'):
+    """ Checksum phase implementation """
     try:
         command = "sudo port -t extract dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Patch phase implementation """
-
-
 def port_patch(name, portv='27'):
+    """ Patch phase implementation """
     try:
         command = "sudo port -t patch dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Configure phase implementation """
-
-
 def port_configure(name, portv='27'):
+    """ Configure phase implementation """
     try:
         command = "sudo port -t configure dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Build phase implementation """
-
-
 def port_build(name, portv='27'):
+    """ Build phase implementation """
     try:
         command = "sudo port -t build dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Destroot phase implementation """
-
-
 def port_destroot(name, portv='27'):
+    """ Destroot phase implementation """
     try:
         command = "sudo port -t destroot dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Clean phase implementation """
-
-
 def port_clean(name, portv='27'):
+    """ Clean phase implementation """
     try:
         command = "sudo port -t clean dports/python/py-" + \
                   name + " subport=py" + portv + "-" + name
         command = command.split()
-        phase_output = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        subprocess.check_call(command, stderr=subprocess.STDOUT)
         return True
     except:
         return False
 
 
-""" Creates a portfile on the basis of the release_data and release_url fetched
-    on the basis of package_name and package_version """
-
-
 def create_portfile(dict, file_name, dict2):
+    """ Creates a portfile on the basis of the release_data and release_url fetched
+    on the basis of package_name and package_version """
     search_distfile(dict['name'], dict['version'])
-    print "Creating Portfile for pypi package " + dict['name'] + "..."
+    print("Creating Portfile for pypi package " + dict['name'] + "...")
     with open(file_name, 'w') as file:
         file.write('# -*- coding: utf-8; mode: tcl; tab-width: 4; ')
         file.write('indent-tabs-mode: nil; c-basic-offset: 4 ')
@@ -475,8 +421,8 @@ def create_portfile(dict, file_name, dict2):
                 file.write('maintainers         {0}\n\n'.format(
                            os.getenv('maintainer', 'nomaintainer')))
         else:
-            print "No maintainers found..."
-            print "Looking for maintainers in environment variables..."
+            print("No maintainers found...")
+            print("Looking for maintainers in environment variables...")
             file.write('maintainers         {0}\n\n'.format(
                        os.getenv('maintainer', 'nomaintainer')))
 
@@ -499,7 +445,7 @@ def create_portfile(dict, file_name, dict2):
                         file.write("{0} \\\n".format(sum_line))
         else:
             file.write('description         None\n\n')
-        description = dict['description']
+#        description = dict['description']
 #        if description:
 #            description = description.encode('utf-8')
 #            description = filter(lambda x: x in string.printable, description)
@@ -526,8 +472,8 @@ def create_portfile(dict, file_name, dict2):
         if home_page and not home_page == 'UNKNOWN':
             file.write('homepage            {0}\n'.format(home_page))
         else:
-            print "No homepage found..."
-            print "Looking for homepage in environment variables..."
+            print("No homepage found...")
+            print("Looking for homepage in environment variables...")
             file.write('homepage            {0}\n'.format(
                        os.getenv('home_page', '')))
 
@@ -541,8 +487,8 @@ def create_portfile(dict, file_name, dict2):
 #        sys.exit(1)
 
         try:
-#                print dict2
-#                print dict2['url']
+                # print dict2
+                # print dict2['url']
                 for item in dict2:
                     if item['python_version'] == 'source':
                         master_var = item['url']
@@ -560,8 +506,8 @@ def create_portfile(dict, file_name, dict2):
                 master_site = dict['release_url']
 #                print master_site
             else:
-                print "No master site found..."
-                print "Looking for master site in environment variables..."
+                print("No master site found...")
+                print("Looking for master site in environment variables...")
                 master_site = os.getenv('master_site', '')
         if master_site:
             file.write('master_sites        {0}\n'.format(master_site))
@@ -576,7 +522,7 @@ def create_portfile(dict, file_name, dict2):
         file.write('distname            {0}-{1}\n\n'.format(
                    dict['name'], dict['version']))
 
-        print "Attempting to generate checksums for " + dict['name'] + "..."
+        print("Attempting to generate checksums for " + dict['name'] + "...")
         checksums_values = checksums(dict['name'], dict['version'])
         if checksums_values:
             file.write('checksums           rmd160  {0} \\\n'.format(
@@ -591,16 +537,16 @@ def create_portfile(dict, file_name, dict2):
         else:
             file.write('python.versions     25 26 27 32 33 34\n\n')
 
-        print "Finding dependencies..."
+        print("Finding dependencies...")
         file.write('if {${name} ne ${subport}} {\n')
         file.write('    depends_build-append \\\n')
         file.write('                        ' +
                    'port:py${python.version}-setuptools\n')
         deps = dependencies(dict['name'], dict['version'], True)
         if deps:
-            for i,dep in enumerate(deps):
+            for i, dep in enumerate(deps):
                 dep = dep.split('>')[0].split('=')[0]
-                dep = dep.replace('[','').replace(']','')
+                dep = dep.replace('[', '').replace(']', '')
                 deps[i] = dep
 #            print deps
             for dep in deps:
@@ -639,29 +585,27 @@ def create_portfile(dict, file_name, dict2):
             file.write('}\n')
         else:
             file.write('}\n')
-    print "Searching for existent port..."
+    print("Searching for existent port...")
     port_exists = search_port(dict['name'])
     if port_exists:
-        print "Creating diff..."
+        print("Creating diff...")
         old_file = port_exists
         new_file = './dports/python/py-'+dict['name']+'/Portfile'
         diff_file = './dports/python/py-'+dict['name']+'/patch.Portfile.diff'
         create_diff(old_file, new_file, diff_file)
-        print str(os.path.abspath(diff_file))+"\n"
+        print(str(os.path.abspath(diff_file))+"\n")
 #        with open(diff_file) as diff:
 #            print diff.read()
-        print "\nIf you want to open a new ticket. Please visit"
-        print "https://trac.macports.org/auth/login/?next=/newticket"
-        print "to open a new ticket after logging in with your credentials."
+        print("\nIf you want to open a new ticket. Please visit")
+        print("https://trac.macports.org/auth/login/?next=/newticket")
+        print("to open a new ticket after logging in with your credentials.")
     else:
-        print "No port found."
-
-
-""" Creates the directories and other commands necessary
-    for a development environment """
+        print("No port found.")
 
 
 def print_portfile(pkg_name, pkg_version=None):
+    """ Creates the directories and other commands necessary
+    for a development environment """
     root_dir = os.path.abspath("./dports")
     port_dir = os.path.join(root_dir, 'python')
     home_dir = os.path.join(port_dir, 'py-'+pkg_name)
@@ -678,28 +622,26 @@ def print_portfile(pkg_name, pkg_version=None):
     if not os.path.exists(home_dir):
         os.makedirs(home_dir)
 
-    print "Attempting to fetch data from pypi..."
+    print("Attempting to fetch data from pypi...")
 
     dict = client.release_data(pkg_name, pkg_version)
     dict2 = client.release_urls(pkg_name, pkg_version)
     if dict and dict2:
-        print "Data fetched successfully."
+        print("Data fetched successfully.")
     elif dict:
-        print "Release Data fetched successfully."
+        print("Release Data fetched successfully.")
     elif dict2:
-        print "Release url fetched successfully."
+        print("Release url fetched successfully.")
     else:
-        print "No data found."
+        print("No data found.")
 
     file_name = os.path.join(home_dir, "Portfile")
     create_portfile(dict, file_name, dict2)
-    print "SUCCESS\n"
-
-
-""" Main function - Argument Parser """
+    print("SUCCESS\n")
 
 
 def main(argv):
+    """ Main function - Argument Parser """
     parser = argparse.ArgumentParser(description="Pypi2Port Tester")
 # Calls list_all() which lists al available python packages
     parser.add_argument('-l', '--list', action='store_true', dest='list',
@@ -731,12 +673,10 @@ def main(argv):
         list_all()
         return
 
-
     if options.packages_search:
         for pkg_name in options.packages_search:
             search(pkg_name)
         return
-
 
     if options.packages_data:
         pkg_name = options.packages_data[0]
@@ -748,9 +688,8 @@ def main(argv):
                 pkg_version = client.package_releases(pkg_name)[0]
                 release_data(pkg_name, pkg_version)
             else:
-                print "No release found\n"
+                print("No release found\n")
         return
-
 
     if options.package_fetch:
         pkg_name = options.package_fetch[0]
@@ -763,9 +702,8 @@ def main(argv):
                 pkg_version = releases[0]
                 fetch_url(pkg_name, pkg_version)
             else:
-                print "No release found\n"
+                print("No release found\n")
         return
-
 
     if options.package_portfile:
         pkg_name = options.package_portfile[0]
@@ -778,16 +716,15 @@ def main(argv):
                 pkg_version = vers[0]
                 print_portfile(pkg_name, pkg_version)
             else:
-                print "No release found\n"
+                print("No release found\n")
         return
-
 
     if options.package_test:
         if len(options.package_test) > 0:
             pkg_name = options.package_test[0]
             port_testing(pkg_name)
         else:
-            print "No package name specified\n"
+            print("No package name specified\n")
         return
 
     parser.print_help()
