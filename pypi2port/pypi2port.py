@@ -31,12 +31,24 @@ def list_all():
         print(package)
 
 
+class Package_Search:
+	def __init__(self, name, summary, version):
+		self.name = name
+		self.version = version
+		self.summary = ""
+		for i in range(0, len(summary), 62):
+			self.summary += summary[i:62+i] + '\n\t\t'
+
+	def __str__(self):
+		return "Name\t\t" + self.name + "\nVersion\t\t" + self.version + "\nSummary\t\t" + self.summary + "\n"
+		
+
 def search(pkg_name):
     """ Searches for a particular package by the name classifier """
     values = client.search({'name': pkg_name})
     for value in values:
-        for key in value.keys():
-            print key, '-->', value[key]
+        package = Package_Search(value['name'], value['summary'], value['version'])
+        print(package)
 
 
 def release_data(pkg_name, pkg_version):
@@ -119,7 +131,6 @@ def fetch_url(pkg_name, pkg_version, checksum=False, deps=False):
     on the basis of package_name and package_version """
     values = client.release_urls(pkg_name, pkg_version)
     if checksum:
-        # print values
         for value in values:
             if value['filename'].split('.')[-1] in ('gz', 'zip'):
                 return fetch(pkg_name, value)
@@ -445,27 +456,7 @@ def create_portfile(dict, file_name, dict2):
                         file.write("{0} \\\n".format(sum_line))
         else:
             file.write('description         None\n\n')
-#        description = dict['description']
-#        if description:
-#            description = description.encode('utf-8')
-#            description = filter(lambda x: x in string.printable, description)
-#            description = re.sub(r'[\[\]\{\}\;\:\$\t\"\'\`\=(--)]+',
-#                                 ' ', description)
-#            description = re.sub(r'\s(\s)+', ' ', description)
-#            lines = textwrap.wrap(description, width=70)
-#            file.write('long_description    ')
-#            for line in lines:
-#                if line and lines.index(line) < 4:
-#                    if not lines.index(line) == 0:
-#                        file.write('                    ')
-#                    if lines.index(line) >= 3:
-#                        file.write("{0}...\n".format(line))
-#                    elif line == lines[-1]:
-#                        file.write("{0}\n".format(line))
-#                    else:
-#                        file.write("{0} \\\n".format(line))
-#        else:
-#            file.write('long_description    ${description}\n\n')
+
         file.write('long_description    ${description}\n\n')
         home_page = dict['home_page']
 
@@ -477,34 +468,20 @@ def create_portfile(dict, file_name, dict2):
             file.write('homepage            {0}\n'.format(
                        os.getenv('home_page', '')))
 
-#        for item in dict2:
-#            if item['python_version'] == 'source':
-#                master_var = item['url']
-#                break
-#        print master_var
-#        master_site = '/'.join(master_var.split('/')[0:-1])
-#        print master_site
-#        sys.exit(1)
-
         try:
-                # print dict2
-                # print dict2['url']
                 for item in dict2:
                     if item['python_version'] == 'source':
                         master_var = item['url']
                         break
-#                print master_var
                 master_site = '/'.join(master_var.split('/')[0:-1])
                 ext = master_var.split('/')[-1].split('.')[-1]
                 if ext == 'zip':
                     zip_set = True
                 else:
                     zip_set = False
-#                print master_site
         except:
             if dict['release_url']:
                 master_site = dict['release_url']
-#                print master_site
             else:
                 print("No master site found...")
                 print("Looking for master site in environment variables...")
@@ -548,24 +525,14 @@ def create_portfile(dict, file_name, dict2):
                 dep = dep.split('>')[0].split('=')[0]
                 dep = dep.replace('[', '').replace(']', '')
                 deps[i] = dep
-#            print deps
             for dep in deps:
                 if dep in ['setuptools', '', '\n']:
                     while deps.count(dep) > 0:
                         deps.remove(dep)
 
-
-#            for dep in deps:
-#                dep = dep.split('>')[0].split('=')[0]
-#                dep = dep.replace('[','').replace(']','')
-#            for item in ['setuptools', '', '\n']:
-#                while deps.count(item) > 0:
-#                    deps.remove(item)
             if len(deps) > 0:
                 file.write('    depends_run-append \\\n')
-#                file.write('                        ' +
-#                           'port:py${python.version}-setuptools')
-#                file.write(" \\\n")
+
                 for dep in deps[:-1]:
                     file.write('                        ' +
                                'port:py${python.version}-' +
@@ -594,8 +561,6 @@ def create_portfile(dict, file_name, dict2):
         diff_file = './dports/python/py-'+dict['name']+'/patch.Portfile.diff'
         create_diff(old_file, new_file, diff_file)
         print(str(os.path.abspath(diff_file))+"\n")
-#        with open(diff_file) as diff:
-#            print diff.read()
         print("\nIf you want to open a new ticket. Please visit")
         print("https://trac.macports.org/auth/login/?next=/newticket")
         print("to open a new ticket after logging in with your credentials.")
