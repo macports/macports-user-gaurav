@@ -7,6 +7,7 @@ import os
 import hashlib
 import zipfile
 import progressbar as pb
+# progressbar3000 for python3
 try:
     import xmlrpclib
     from urllib2 import urlopen
@@ -50,20 +51,66 @@ def search(pkg_name):
         package = Package_Search(value['name'], value['summary'], value['version'])
         print(package)
 
+class Package_release_data:
+	def __init__(self, attributes):
+		# self.name = name
+		# self.version = version
+		# self.home_page = attributes['home_page']
+		# self.license = attributes['license']
+		# self.summary = attributes['summary']
+		# self.maintainer = attributes['maintainer']
+		# self.docs_url = attributes['docs_url']
+		# self.requires_python = attributes['requires_python']
+		# self.maintainer_email = attributes['maintainer_email']
+		# self.cheesecake_code_kwalitee_id = attributes['cheesecake_code_kwalitee_id']
+		# self.keywords = attributes['keywords']
+		# self.package_url = attributes['package_url']
+		# self.author = attributes['author']
+		# self.author_email = attributes['author_email']
+		# self.download_url = attributes['download_url']
+		# self.platform = attributes['platform']
+		# self.cheesecake_documentation_id = attributes['cheesecake_documentation_id']
+		# self._pypi_hidden = attributes['_pypi_hidden']
+		# self.description = attributes['description']
+		# self.release_url = attributes['release_url']
+		# self.downloads = attributes['downloads']
+		# self._pypi_ordering = attributes['_pypi_ordering']
+		# self.classifiers = attributes['classifiers']
+		# self.bugtrack_url = attributes['bugtrack_url']
+		# self.stable_version = attributes['stable_version']
+		# self.cheesecake_installability_id = attributes['cheesecake_installability_id']
+
+		variables = attributes.keys()
+		for v in variables:
+			setattr(self, v, attributes[v])
+
+	def __str__(self):
+		output = "Name\t\t" + self.name + "\nVersion\t\t" + self.version
+		if self.maintainer and self.maintainer != 'UNKNOWN':
+			output += "\nMaintainter\t" + self.maintainer
+		output += "\nHome_page\t" + self.home_page
+		output += "\nPackage_url\t" + self.package_url
+		if self.download_url and self.download_url != 'UNKNOWN':
+			output += "\nDownload_url\t" + self.download_url
+		output += "\nRelease_url\t" + self.release_url
+		if self.docs_url and self.docs_url != 'UNKNOWN':
+			output += "\nDocs_url\t" + self.docs_url
+		output += "\nDescription\t" + self.description
+		return output
 
 def release_data(pkg_name, pkg_version):
     """ Fetches the release data for a paticular package based on
     the package_name and package_version """
-    if pkg_version:
-        values = client.release_data(pkg_name, pkg_version)
-        if values:
-            for key in values.keys():
-                print key, '-->', values[key]
-        else:
-            print("No such package found.")
-            print("Please specify the exact package name.")
-        return
+    # if pkg_version:
+    values = client.release_data(pkg_name, pkg_version)
+    if values:
+    	package = Package_release_data(values)
+    	print(package)
+    else:
+        print("No such package found.")
+        print("Please specify the exact package name.")
     return
+    # return
 
 
 def fetch(pkg_name, dict):
